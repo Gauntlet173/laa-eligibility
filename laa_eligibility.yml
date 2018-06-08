@@ -1,0 +1,906 @@
+metadata:
+  title: |
+    Legal Aid Alberta Eligibility Calculator
+  short title: |
+    Legal Aid Alberta Eligibility Calculator
+  description: |
+    Tool to aid users in determining whether a person is likely to qualify for Legal
+    Aid Alberta services.
+  authors:
+    - name: Jason Morris
+      organization: Round Table Law
+  revision_date: 2018-06-08
+  comment: |
+    To Do: Consider Adding Line-Item support for income?
+    To Do: Consider Adding Line-Item support for assets.
+    To Do: Testing.
+    To Do: Make it so that it doesn't switch back and forth between people and money.metadata:
+    Need to see about getting commutative short circuiting in disjunctive clauses.
+    See slack chat with Johnathan Pyle in DocAssemble June 7 2018.
+    Deal better with questions that the user may not have the answer for.
+    Figure out a way to deal with Duty Counsel services.
+    Bug: it seems to be asking for residence alternatives for no reason. This may be
+    a shortcutting problem.
+    Determine whether the rule eliminates consideration of both merit and likelihood
+    of success or just one of the two.
+    Change alternative to residence for criminal matters in Alberta to use the matter type,
+    delete the extra question.
+    Deal with the kinds of representation that can be ordered by the court or requested
+    by the Minister.
+    Confirm that matrimonial property requirement of additional services is sub d not sub b.
+    Deal with appeals of things as an option in the lists.
+---
+modules:
+  - docassemble.base.core
+  - docassemble.base.util
+---
+features:
+  progress bar: True
+---
+objects:
+  - person: DAList.using(object_type=Individual)
+  - client: Individual
+---
+code: |
+  if not custody and not access and not guardianship_of_children and not parenting_time and \
+  not contact and not spousal_support and not child_support and not matrimonial_property:
+    other_family_matters_divorce = False
+  else:
+    other_family_matters_divorce = True
+---
+code: |
+  if not custody and not access and not guardianship_of_children and not parenting_time and \
+  not contact and not spousal_support and not child_support:
+    other_family_matters_mat_prop = False
+  else:
+    other_family_matters_mat_prop = True
+---
+code: |
+  if not custody and not access and not guardianship_of_children and not parenting_time and \
+  not contact and not spousal_support and not child_support and not matrimonial_property \
+  and not constructive_trust:
+    other_family_matters_restraining_order = False
+  else:
+    other_family_matters_restraining_order = True
+---
+mandatory: True
+question: |
+  Welcome to the Legal Aid Alberta Eligibility Calculator
+subquestion: |
+  By continuing and using this website, you acknowledge and agree to the following:
+  
+  * This system is in testing, and should not be relied upon.
+  * This system does not provide legal advice.
+  * Use of this system does not create a lawyer-client relationship between you and
+  anyone else.
+  * This tool is not endorsed by, and does not provide opinions of Legal Aid Alberta.
+  * The results in this system are not binding on Legal Aid Alberta or anyone else.
+  * You consent to the collection of your information by Round Table Law for the purpose
+  of testing and improving this tool and obtaining information on Legal Aid Alberta's
+  eligibility requirements. Your information will not be used or disclosed to anyone for any
+  other purpose.
+  * This website is not secure, and confidential information should
+  not be entered into this tool, as it may be visible to others on the internet.
+field: intro_read
+continue button label: I Agree
+---
+question: |
+  Who is the prospective client?
+fields:
+  - First Name: client.name.first
+  - Last Name: client.name.last
+  - Date of Birth: client.birthdate
+    datatype: date
+---
+code: |
+  if client.does_not_have_representation \
+  and \
+  client.is_residence_eligible \
+  and \
+  (client.is_civil_law_eligible \
+  or \
+  client.is_family_law_eligible \
+  or \
+  client.is_criminal_law_eligible):
+    client.is_service_eligible = True
+  else:
+    client.is_service_eligible = False
+---
+code: |
+  if not client.has_hired_lawyer \
+  or ( \
+     not client.can_afford_lawyer and \
+     (not client.lawyer_still_acting or client.lawyer_removed) \
+  ):
+    client.does_not_have_representation = True
+  else:
+    client.does_not_have_representation = False
+---
+code: |
+  if \
+  matter_in_alberta \
+  and \
+  (main_matter_type == "mental health" and client_is_formal_patient) \
+  or \
+  (main_matter_type == "guardianship" and client_is_target_of_guardianship) \
+  or \
+  (main_matter_type == "immigration" and immigration_matter_type_is_available) \
+  :
+    client.is_civil_law_eligible = True
+  else:
+    client.is_civil_law_eligible = False
+---
+code: |
+  if \
+  extradition_matter \
+  or \
+  imprisonment_likely \
+  or \
+  at_risk_of_losing_livelihood \
+  or \
+  criminal_matter_indictable \
+  or \
+  ycja_matter \
+  or \
+  (criminal_appeal and appeal_sought_by_crown):
+    client.is_criminal_law_eligible = True
+  else:
+    client.is_criminal_law_eligible = False
+---
+code: |
+  if \
+  main_matter_type == "family" \
+  and ( \
+  child_welfare \
+  or \
+  interjurisdictional_support \
+  or \
+  EPO \
+  or \
+  QBPO \
+  or \
+  (restraining_order and \
+  (restraining_order_meritorious or other_family_matters_restraining_order)) \
+  or \
+  (divorce and divorce_contested and \
+  (other_family_matters_divorce or equity_over_50k))\
+  or \
+  custody \
+  or \
+  access \
+  or \
+  guardianship_of_children \
+  or \
+  parenting_time \
+  or \
+  contact \
+  or \
+  spousal_support \
+  or \
+  child_support \
+  or \
+  (matrimonial_property and \
+  (other_family_matters_mat_prop or equity_over_50k)) \
+  or \
+  (constructive_trust and equity_over_50k) \
+  or \
+  (partition_and_sale and equity_over_50k) \
+  or \
+  (interjurisdictional_support and ijso_child_support_only) \
+  ):
+    client.is_family_law_eligible = True
+  else:
+    client.is_family_law_eligible = False
+---
+code: |
+  if client.is_resident_albertan or \
+  client.intends_to_reside_in_alberta or \
+  (client.is_criminal_law_eligible and matter_in_alberta) or \
+  client.seeks_appeal_of_LAA_matter \
+  :
+    client.is_residence_eligible = True
+  else:
+    client.is_residence_eligible = False
+---
+question: |
+  Does ${ client } have a home in Alberta where they usually live?
+yesno: client.is_resident_albertan
+---
+question: |
+  Has ${ client } moved to Alberta with the intent to make a home in Alberta and ordinarily
+  reside there?
+yesno: client.intends_to_reside_in_alberta
+---
+question: |
+  Has ${ client } previously hired a lawyer privately (not through Legal Aid Alberta)
+  with regard to the legal matter?
+yesno: client.has_hired_lawyer
+---
+question: |
+  Can ${ client } afford to continue to pay their private lawyer?
+yesno: client.can_afford_lawyer
+---
+question: |
+  Is the private lawyer previously hired still acting for ${ client } with regard to the matter?
+yesno: client.lawyer_still_acting
+---
+question: |
+  Has the lawyer been removed as counsel of record from any court or tribunal case related
+  to the matter?
+yesno: client.lawyer_removed
+---
+question: |
+  Is the matter ${ client } is requesting services for an appeal of an earlier
+  court decision?
+yesno: appeal
+---
+if: criminal_appeal or appeal
+question: |
+  Did Legal Aid Alberta provide legal services to
+  ${ client } at the hearing or trial that is being appealed?
+yesno: client.seeks_appeal_of_LAA_matter
+---
+question: |
+  What type of legal matter is ${ client } seeking assistance with?
+field: main_matter_type
+choices:
+  - Criminal Matters: criminal
+  - Immigration and Refugee Claims: immigration
+  - Adult Guardianship and Trusteeship: guardianship
+  - Mental Health: mental health
+  - Family Law Claims: family
+  - Other: other
+---
+if: main_matter_type == "immigration"
+question: |
+  What type of Immigration and Refugee matter is ${ client } seeking assistance with?
+field: immigration_matter_type_is_available
+choices:
+  - Refugee Claim: True
+  - Filing of Basis of Claim (BOC) Form: True
+  - Application for extension of time, hearings, and abandonment show cause hearings: True
+  - Appeal from unsuccessful refugee claims: True
+  - Judicial Review of unsuccessful refugee claim: True
+  - Admissibility Hearings: True
+  - Removal Appeal: True
+  - Appeals by the Minister: True
+  - Detention Hearing: True
+  - Other: False
+---
+if: main_matter_type == "guardianship"
+question: |
+  Is someone seeking to appoint a trustee or guardian for ${ client }?
+yesno: client_is_target_of_guardianship
+---
+if: main_matter_type == "mental health"
+question: |
+  Is ${ client } a formal patient in a psychiatric institution, who wishes to make an
+  application before a Mental Health Review Panel?
+yesno: client_is_formal_patient
+---
+question: |
+  Is this ${ main_matter_type } matter one which involves an Alberta court or tribunal?
+yesno: matter_in_alberta
+---
+question: |
+  Is ${ client } seeking assistance with an indictable offence under the Criminal Code or
+  any other law?
+yesno: criminal_matter_indictable
+---
+question: |
+  Is ${ client } at risk of being imprisoned?
+yesno: imprisonment_likely
+---
+question: |
+  Is ${ client } at risk of losing their ability to earn a living?
+yesno: at_risk_of_losing_livelihood
+---
+code: |
+  if client.age_in_years() >= 18:
+    ycja_matter = False
+---
+if: client.age_in_years() < 18
+question: |
+  Is ${ client } appearing with regard to the Youth Criminal Justice Act?
+yesno: ycja_matter
+---
+question: |
+  Is ${ client } looking for help with an extradition matter?
+yesno: extradition_matter
+---
+question: |
+  Is ${ client } seeking a bail application?
+yesno: bail_matter
+---
+question: |
+  Is ${ client } seeking assistance with a criminal law appeal?
+yesno: criminal_appeal
+---
+if: criminal_appeal
+question: |
+  Was an appeal of the conviction sought by the crown prosecutors?
+yesno: appeal_sought_by_crown
+---
+if: main_matter_type == "family"
+question: |
+  Which of the following types of family law matters is ${ client } seeking assistance with?
+subquestion: |
+  You should indicate all that apply.  Some services are available only in combination
+  with others.
+fields:
+  - Child Welfare Order: child_welfare
+    datatype: yesno
+  - Interjurisdictional Support Orders: interjurisdictional_support
+    datatype: yesno
+  - Emergency Protection Orders: EPO
+    datatype: yesno
+  - Queen's Bench Protection Order: QBPO
+    datatype: yesno
+  - Restraining Orders against family members: restraining_order
+    datatype: yesno
+  - Divorce: divorce
+    datatype: yesno
+  - Child Custody: custody
+    datatype: yesno
+  - Access to Children: access
+    datatype: yesno
+  - Guardianship of Children: guardianship_of_children
+    datatype: yesno
+  - Parenting Time: parenting_time
+    datatype: yesno
+  - Contact with Children: contact
+    datatype: yesno
+  - Spousal Support: spousal_support
+    datatype: yesno
+  - Child Support: child_support
+    datatype: yesno
+  - Matrimonial Property Division: matrimonial_property
+    datatype: yesno
+  - Constructive Trust Matters: constructive_trust
+    datatype: yesno
+  - Partition and Sale Matters Between the Client and a Spouse: partition_and_sale
+    datatype: yesno
+  - Interjurisdictional Support Orders Act matters: interjurisdictional_support
+    datatype: yesno
+  - Other: other
+    datatype: yesno
+---
+question: |
+  Has the legal merit of the restraining order already been determined?
+yesno: restraining_order_meritorious
+---
+question: |
+  Is child support the only issue in the interjurisdictional support orders matter?
+yesno: ijso_child_support_only
+---
+question: |
+  Is ${ client }'s equity in the disputed property at least $50,000?
+yesno: equity_over_50k
+---
+question: |
+  Is the divorce contested?
+yesno: divorce_contested
+---
+auto terms:
+  prospective client: |
+    The prospective client is the person with the legal issue who is seeking assistance
+    from Legal Aid Alberta and whose financial eligibility this tool is designed to
+    help estimate.
+---
+terms:
+  included assets: |
+    Included assets are the assets which are taken account in determining your financial
+    eligibility for legal aid. All of the categories of included assets are subject to
+    exclusions.  See the definition of excluded assets for details.  The following may
+    be included assets:
+    
+    * Real Estate (e.g. House, Condo, Land)
+    * Vehicles
+    * RRSPs or RIFs
+    * Business Assets
+    * Liquid Assets (e.g. Cash, money in bank accounts)
+    * Anything which can be sold 
+  excluded assets: |
+    Many of the assets which are included are subject to exclusions.  The following
+    assets are excluded, and should not be included in the reported asset amount:
+    
+    * Any assets which cannot be sold in a reasonable amount of time in order to pay
+    for legal services.
+    * Your Home, if it cannot be mortgaged or sold in a reasonable amount of time, and
+    if you could not afford larger mortgage payments.
+    * Vehicles which are required for employment.
+    * Vehicles, when the client lives in a remote area with limited public transportation.
+    * Vehicles required to accommodate a disability.
+    * Vehicles over which the client does not have control.
+    * Leased vehicles.
+    * RIFs used for living expenses.
+    * RRSPs, where they are the client's only pension.
+    * RRSPs, where they are locked.
+    * Business assets required to generate income.
+    * Business assets against which it is not possible to borrow.
+    * Business assets subject to a GSA.
+    * RESPs and other reasonable savings for children.
+  included income: |
+    Included income are the sources of income that Legal Aid Alberta takes
+    into account when determining whether or not your family income meets the
+    financial eligibility requirements of Legal Aid.  Included income is income from
+    the following sources:
+    
+    * Employment income before source deductions
+    * Self-employment income after deduction of reasonable operating costs
+    * Pension benefits
+    * Retirement allowances
+    * Death benefits
+    * Employment insurance benefits
+    * Spousal and child support payments
+    * Annuity patments
+    * Grants
+    * Social assistance payments
+    * Workers’ compensation benefits
+    * Benefits from deferred income plans
+    * Scholarships
+    * Bursaries
+    * Research grants
+    * Indirect payments
+    * GST and HST rebates
+    * Child tax benefits
+    * Rental income
+    * Dividends
+    * Interest
+    * Investment income
+    * Other income
+  excluded income: |
+    Excluded income is those types of income which Legal Aid Alberta does not take
+    into consideration in determining whether or not you meet the financial eligibility
+    guidelines.  Please DO NOT include income from the following sources in 30-day
+    or one-year income for the client or their family members.
+    
+    * Income tax refunds
+    * Money received from student loans
+    * Child Tax Benefit or National Child Care Benefit
+    * GST rebates
+    * Payments received for foster children
+    * RRSP contributions required by employer
+---
+mandatory: True
+code: |
+  person.complete_attribute = 'complete'
+---
+code: |
+  person[i].name.first
+  person[i].name.last
+  person[i].birthdate
+  person[i].lives_with_client
+  person[i].complete = True
+---
+code: |
+  if person[i].is_clients_spouse and not person[i].lives_separate_and_apart_from_client:
+    person[i].is_clients_spouse_relevant = True
+  elif person[i].has_biological_child_with_client:
+    person[i].is_clients_spouse_relevant = True
+  elif date_difference(starting=person[i].date_started_living_with_client,ending=current_datetime()).years > 1:
+    person[i].is_clients_spouse_relevant = True
+  elif person[i].is_in_AIR_with_client:
+    person[i].is_clients_spouse_relevant = True
+  else:
+    person[i].is_clients_spouse_relevant = False
+---
+code: |
+  if person[i].is_clients_spouse_relevant == True:
+    person[i].is_dependent_relevant = True
+  elif person[i].is_a_minor and not person[i].is_dependent_of_non_dependent and not person[i].is_foster_child and person[i].has_been_apprehended_by_CFS and not person[i].is_subject_of_permanent_guardianship_order:
+    person[i].is_dependent_relevant = True
+  elif person[i].is_a_minor and not person[i].is_dependent_of_non_dependent and not person[i].is_foster_child and person[i].is_under_clients_care_and_control and not person[i].resides_with_client_less_than_40percent:
+    person[i].is_dependent_relevant = True
+  elif person[i].is_a_minor and not person[i].is_dependent_of_non_dependent and not person[i].is_foster_child and person[i].is_under_clients_care_and_control and person[i].cannot_provide_for_self:
+    person[i].is_dependent_relevant = True
+  else:
+    person[i].is_dependent_relevant = False
+---
+code: |
+  if person[i].is_dependent_relevant:
+    person[i].is_relevant_financially = True
+  elif client.is_a_minor and not client.is_married and person[i].is_caregiver_of_client:
+    person[i].is_relevant_financially = True
+  else:
+    person[i].is_relevant_financially = False
+---
+code: |
+  # This code counts the number of people for whom they are financially relevant.
+  client.family_size = 1
+  for x in person:
+    if x.is_relevant_financially : client.family_size = client.family_size + 1
+reconsider: True
+---
+code: |
+  # This code calculates the family monthly and yearly income and assets.
+  client.family_year_income = client.year_income
+  for x in person:
+    if x.is_relevant_financially : client.family_year_income = client.family_year_income + x.year_income
+  client.family_thirty_day_income = client.thirty_day_income
+  for x in person:
+    if x.is_relevant_financially : client.family_thirty_day_income = client.family_thirty_day_income + x.thirty_day_income
+  client.family_assets = client.assets
+  for x in person:
+    if x.is_relevant_financially: client.family_assets = client.family_assets + x.assets
+reconsider: True
+---
+code: |
+  # This code determines whether or not the client is eligible based on income.
+  if client.family_thirty_day_income > client.max_monthly_income:
+    client.has_eligible_family_thirty_day_income = False
+  else:
+    client.has_eligible_family_thirty_day_income = True
+reconsider: True
+---
+code: |
+  if client.family_year_income > client.max_yearly_income:
+    client.has_eligible_family_year_income = False
+  else:
+    client.has_eligible_family_year_income = True
+reconsider: True
+---
+code: |
+  if client.family_year_income > client.marginal_max_yearly_income:
+    client.has_marginal_family_year_income = False
+  elif client.family_year_income <= client.marginal_max_yearly_income and not client.has_eligible_family_year_income:
+    client.has_marginal_family_year_income = True
+reconsider: True
+---
+code: |
+  if client.family_thirty_day_income > client.marginal_max_monthly_income:
+    client.has_marginal_family_monthy_income = False
+  elif client.family_thirty_day_income <= client.marginal_max_monthly_income and not client.has_eligible_family_thirty_day_income:
+    client.has_marginal_family_monthly_income = True
+reconsider: True
+---
+code: |
+  if client.family_assets > 120000:
+    client.has_eligible_family_assets = False
+  else:
+    client.has_eligible_family_assets = True
+reconsider: True
+---
+code: |
+  if client.has_eligible_family_assets and client.has_eligible_family_year_income and client.has_eligible_family_thirty_day_income:
+    client.is_financially_eligible = True
+    client.is_financially_marginal = False
+  elif client.has_eligible_family_assets and client.has_marginal_family_year_income and client.has_eligible_family_thirty_day_income:
+    client.is_financially_eligible = False
+    client.is_financially_marginal = True
+  elif client.has_eligible_family_assets and client.has_eligible_family_year_income and client.has_marginal_family_thirty_day_income:
+    client.is_financially_eligible = False
+    client.is_financially_marginal = True
+  elif client.has_eligible_family_assets and client.has_marginal_family_year_income and client.has_marginal_family_thirty_day_income:
+    client.is_financially_eligible = False
+    client.is_financially_marginal = True
+  else:
+    client.is_financially_eligible = False
+    client.is_financially_marginal = False
+reconsider: True
+---
+code: |
+  if client.age_in_years() < 18:
+    client.is_a_minor = True
+  else:
+    client.is_a_minor = False
+---
+code: | 
+  if person[i].age_in_years() < 18:
+    person[i].is_a_minor = True
+  else:
+    person[i].is_a_minor = True
+---
+progress: 100
+mandatory: True
+question: |
+  % if client.laa_eligible:
+    ${ client } is eligible for Legal Aid Alberta services.
+  % else:
+    ${ client } is not eligible for Legal Aid Alberta services.
+  % endif
+subquestion: |
+  % if client.is_service_eligible:
+    Legal Aid Alberta provides the service that ${ client } is requesting.
+  % else:
+    Legal Aid Alberta does not provide the service that ${ client } is requesting.
+  % endif
+
+  % if not(client.is_service_eligible):
+    The tool has determined, based on the information it has, that ${ client } is not
+    eligible for Legal Aid Alberta services. However, Legal Aid Alberta policies do allow
+    for discretion in unusual circumstances. Those are matters that this system cannot
+    take into account. If you believe that there are unusual circumstances which justify
+    providing services where Legal Aid Alberta would usually not, you should contact
+    Legal Aid Alberta and go through their application process.
+    
+  % endif
+  % if not(client.is_residence_eligible):
+    The tool has determined that you are not eligible for Legal Aid Alberta services because
+    you are not a resident of Alberta or intended resident of Alberta, charged with a criminal offence in Alberta, or seeking
+    assistance with an appeal where Legal Aid Alberta assisted you with the original matter.
+
+    However, there are circumstances in which Legal Aid Alberta will provide services to
+    individuals who live in other jurisdictions.
+
+    If you are seeking assistance with an international child custody matter, 
+    and the child is located in Alberta, please contact
+    the Hague Convention authority in the jurisdction where you live, and ask them to apply
+    for Legal Aid Alberta services on your behalf.
+
+    If you are eligible for Legal Aid services in your home jurisdction, your home Legal Aid
+    organization may be able to request services on your behalf from Legal Aid Alberta.
+    
+  % endif
+  % if main_matter_type == "immigration" and client.is_service_eligible:
+    You have indicated that ${ client } is seeking assistance with an immigration matter.
+    
+    Legal Aid Alberta imposes the following additional requirements on immigration
+    matters, which will be determined after ${ client } applies to Legal Aid Alberta:
+    
+    * The matter must be one where the cost of providing the services is reasonable.
+    * The matter must be one that has merit, or a likelihood of success, or both.
+    
+  % endif
+  % if main_matter_type == "guardianship" and client.is_service_eligible:
+    You have indicated that ${ client } is seeking assistance with a guardianship or
+    trusteeship matter.
+    
+    Legal Aid Alberta imposes the following additional requirements on guardianship and
+    trusteeship matters, which will be determined after ${ client } applies to Legal Aid Alberta:
+    
+    * The matter must be one where the cost of providing the services is reasonable.
+    
+  % endif
+  % if main_matter_type == "criminal" and criminal_appeal and client.is_service_eligible:
+    You have indicated that ${ client } is seeking assistance with a criminal appeal.
+    
+    Legal Aid Alberta imposes the following additional requirements on criminal appeal
+    matters, which will be determined after ${ client } applies to Legal Aid Alberta:
+    
+    * The matter must be one where the cost of providing the services is reasonable.
+    * The matter must be one that has merit, or a likelihood of success, or both.
+    
+  % endif
+  % if main_matter_type == "family" and client.is_service_eligible:
+    You have indicated that ${ client } is seeking assistance with a family law
+    matter.
+    
+    Legal Aid Alberta imposes the following additional requirements on family law
+    matters, which will be determined after ${ client } applies to Legal Aid Alberta:
+    
+    * The matter must be one where the cost of providing the services is reasonable.
+    * The matter must be one that has merit, or a likelihood of success, or both.
+    
+    With regard to family law matters, it is possible to specify more than one area of
+    law. The system has determined that for at least one of those areas of law, ${ client }
+    is eligible.
+    
+  % endif
+  
+  %if client.is_financially_eligible:
+  ${ client } is financially eligible for Legal Aid Alberta services.
+  
+  %elif client.is_financially_marginal:
+  ${ client } is above one or both of the limits for income, but is within 10% of that
+  limit, and so Legal Aid may exercise discretion.
+  %else:
+  ${ client } is not financially eligible for Legal Aid Alberta services.
+  %endif
+  The user has provided information about the following individuals who live with ${ client }.
+  
+  %for p in person:
+    * ${ p }
+  %endfor
+  
+  Of those, the following people are relevant for determining income and assets.
+  
+  * ${ client }, who has 30-day income of ${ currency(client.thirty_day_income) }, yearly income of ${ currency(client.year_income) },
+  and assets of ${ currency(client.assets) }.
+  %for p in person:
+    %if p.is_relevant_financially:
+  * ${ p }, who has 30-day income of ${ currency(p.thirty_day_income) }, yearly income of ${ currency(p.year_income) },
+  and assets of ${ currency(p.assets) }.
+    %endif
+  %endfor
+  
+  That is a family size of ${ client.family_size }.  The maximum 30-day income for a family
+  of ${ client.family_size } is ${ currency(client.max_monthly_income) }.  The maximum yearly income
+  for a family of ${ client.family_size } is ${ currency(client.max_yearly_income) }. The maximum
+  allowable amount of assets is $120,000.
+  
+  The total monthly income of ${ client }'s family is ${ currency(client.family_thirty_day_income) }.
+  The total annual income of ${ client }'s family is ${ currency(client.family_year_income) }.
+  The total amount of assets held by ${ client }'s family is ${ currency(client.family_assets) }.
+  
+  %if client.is_financially_marginal:
+    Because one or both of the family income amounts are within 10% of the maximum,
+    Legal Aid Alberta may exercise discetion in approving ${ client } for legal services.
+  %endif
+
+  Please consider providing feedback by clicking Give Feedback on Beta below.
+field: answer_given
+continue button label: Give Feedback on Beta
+---
+if: answer_given
+mandatory: True
+sets: feedback_sent
+question: |
+  Please provide feedback on the beta test of the Legal Aid Alberta eligibility tool.
+fields:
+  - How did you access the tool?: access_method
+    choices:
+      - Web: web
+      - Mobile: mobile
+  - How easy was it to use? (1 = hard, 5 = easy): ease_of_use
+    datatype: range
+    min: 1
+    max: 5
+    step: 1
+  - Do you have any comments for us to help us improve the tool?: comments
+    datatype: area
+continue button label: Send Feedback
+---
+if: feedback_sent
+mandatory: true
+question: |
+  Interview Complete
+---
+question: |
+  Who is the prospective client?
+fields:
+  - First Name: client.name.first
+  - Last Name: client.name.last
+  - Date of Birth: client.birthdate
+    datatype: date
+---
+question: |
+  So far, the people who live with ${ client.name } are ${ person }. Are there more?
+yesno: person.there_is_another
+---
+question: |
+  Does ${ client.name } live with anyone?
+yesno: person.there_are_any
+---
+question: |
+  Who is the ${ ordinal(i) } person who lives with ${ client.name }
+fields:
+  - First Name: person[i].name.first
+  - Last Name: person[i].name.last
+  - Date of Birth: person[i].birthdate
+    datatype: date
+  - Lives with ${ client }?: person[i].lives_with_client
+    datatype: yesno
+---
+question: |
+  Is ${ person[i] } the spouse of ${ client }?
+yesno: person[i].is_clients_spouse
+---
+---
+question: |
+  Is ${ person[i] } under the care and control of ${ client }?
+yesno: person[i].is_under_clients_care_and_control
+---
+question: |
+  Is ${ person[i] } unable to care for themselves due to disability or injury?
+yesno: person[i].cannot_provide_for_self
+---
+question: |
+  Is ${ person[i] } a caregiver or guardian or parent of ${ client }?
+yesno: person[i].is_caregiver_of_client
+---
+question: |
+  Has ${ person[i] } been apprehended by Child and Family Services?
+yesno: person[i].has_been_apprehended_by_CFS
+---
+question: |
+  Is ${ person[i] } the subject of a permanent guardianship order?
+yesno: person[i].is_subject_of_permanent_guardianship_order
+---
+question: |
+  When did ${ person[i] } begin living with ${ client }?
+fields:
+  - Date: person[i].date_started_living_with_client
+    datatype: date
+---
+question: |
+  Do ${ person[i] } and ${ client } have any biological children?
+yesno: person[i].has_biological_child_with_client
+---
+question: |
+  Are ${ person[i] } and ${ client } in an Adult Interdependent Relationship with one another?
+yesno: person[i].is_in_AIR_with_client
+---
+question: |
+  Does ${ person[i] } reside with ${ client } less than 40% of the time?
+yesno: person[i].resides_with_client_less_than_40percent
+---
+question: |
+  Is ${ person[i] } an adult who lives with ${ client } but is not dependent (e.g. a roommate)?
+yesno: person[i].is_non_dependent_adult
+---
+question: |
+  Is ${ person[i] } a foster child?
+yesno: person[i].is_foster_child
+---
+question: |
+  Is ${ person[i] } a dependent of someone who lives with ${ client } and is not dependent on ${ client } (e.g. the child of a roommate?)
+yesno: person[i].is_dependent_of_non_dependent
+---
+question: |
+  Is ${ person[i] } separated from ${ client }, but continues to live in the same home, but lives separate and apart from ${ client }?
+yesno: person[i].lives_separate_and_apart_from_client
+---
+question: |
+  Is ${ person[i] } a dependent of ${ client }?
+yesno: person[i].is_dependent_of_client
+---
+generic object: Individual
+question: |
+  How much income did ${ x } make in the last 30 days?
+subquestion: |
+  Please make sure to include only {included income} and leave out {excluded income}.
+  Click on the links for more details.
+fields:
+  - Income in last 30 days: x.thirty_day_income
+    datatype: currency
+---
+generic object: Individual
+question: |
+  How much income did ${ x } make in the last year?
+subquestion: |
+  Please make sure to include only {included income} and leave out {excluded income}.
+  Click on the links for more details.
+fields:
+  - Last Year's Income: x.year_income
+    datatype: currency
+---
+generic object: Individual
+question: |
+  What is the value of the assets that ${ x } owns?
+subquestion: |
+  Make sure to include only the value of {included assets} and leave out the value of
+  {excluded assets}.  Do not include the value of anything that is co-owned.
+fields:
+  - Owned Assets: x.assets
+    datatype: currency
+---
+code: |
+  if client.family_size == 1:
+    client.max_monthly_income = 1638
+    client.max_yearly_income = 19653
+  if client.family_size == 2:
+    client.max_monthly_income = 2027
+    client.max_yearly_income = 24333
+  if client.family_size == 3:
+    client.max_monthly_income = 2885
+    client.max_yearly_income = 34627
+  if client.family_size == 4:
+    client.max_monthly_income = 3120
+    client.max_yearly_income = 37434
+  if client.family_size == 5:
+    client.max_monthly_income = 3354
+    client.max_yearly_income = 40242
+  if client.family_size >= 6:
+    client.max_monthly_income = 3587
+    client.max_yearly_income = 43050
+reconsider: True
+---
+code: |
+  client.marginal_max_monthly_income = client.max_monthly_income * 1.1
+  client.marginal_max_yearly_income = client.max_yearly_income * 1.1
+reconsider: True
+---
+mandatory: True
+question: |
+  ${ client } is
+  % if not(client.laa_eligible):
+  not 
+  % endif
+  eligible for Legal Aid Alberta services.
+---
+code: |
+  if client.is_service_eligible and client.is_financially_eligible:
+    client.laa_eligible = True
+  else:
+    client.laa_eligible = False
